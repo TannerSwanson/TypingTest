@@ -1,22 +1,28 @@
 #include <stdio.h>
 
 typedef struct {
+    // Utilized by newLine and validate functions.
     int size;
     char* array;
 } dynamic_array;
 
-int newLine() {
+typedef struct {
+    // shared struct to tell readWords to send to newLine. May be extended for Child c action.
+    int signal_from_b;
+} signals;
+
+int newLine(dynamic_array* arr, signals* sig) {
     // This works, however we have an FD problem. 
     // This is Child b (reads from a, outs to user)
     // Child a (reads from wordlist2.txt, outs to b)
     // Child c validates user input (in from user, out to user)
 
-    dynamic_array* arr;
-    int fd[2];
+    int fd[2]; // need to actually map the FD's. 
     int bufSize = 300; // bufferSize
+    char* wordBuffer[15] = {0};
     while (bufSize > 0) { // we will use this to fill our arr until it is max capacity.
-        char* wordBuffer[15];
-        int returnedByteCount = read(fd[0], &wordBuffer, 15); // read from another thread which had its FD's remapped. (TODO)
+        sig->signal_from_b = 1;
+        int returnedByteCount = read(fd[0], &wordBuffer, 15);
         if (bufSize - returnedByteCount >= 0) {
             if (returnedByteCount <= 0) { 
                 // Failed operation
@@ -26,13 +32,16 @@ int newLine() {
             else {
                 arrayRebuild(&arr, &wordBuffer);
             }
-            return 0;
+            memset(wordBuffer, 0, 15); //resets wordBuffer to all 0's
         }
         else {
             printf("Buffer overflow prevented.");
             bufSize = 0; // used to exit while loop.
+            memset(wordBuffer, 0, 15); //resets wordBuffer to all 0's
         }
     }
+    sig->signal_from_b = 0; // disable signal.
+
     // now we can start to display all of the information.
     for (int i = 0; i < arr->size; i++) {
         printf("%c", arr->array[i]);
@@ -41,28 +50,26 @@ int newLine() {
 }
 
 
-int readWords() {
-    // TODO: Remember how to remap fd's. Also create the shared struct that the 3 will use to communicate. 
-    // Currently we need a signal_from_b varaible (could rename), but needs to be signal from b (newLine) to a (readWords)
-    // that it is ready to receive words.
+int readWords(signals* sig) {
+    // TODO: Remember how to remap fd's.
+    
     int fd[2];
-    int signal_from_b = 1; // temp, until errors stop.
     while (1) {
         int break_Flag = 0;
-        if (signal_from_b) {
+        if (sig->signal_from_b == 1) {
             char* wordBuffer[15];
             int returnedByteCount = read(fd[0], &wordBuffer, 15);
             for (int i = 0; i < 15; i++) {
                 if (wordBuffer[i] == '\0' || wordBuffer[i] == '\n') {
                     write(fd[1], &wordBuffer, (i-1)); //if we reached end, stop and write from here.
                     break_Flag = 1;
-                    signal_from_b = 0;
+                    sig->signal_from_b = 0;
                     break;
                 }
             }
             if (break_Flag == 0) {
                 write(fd[1], &wordBuffer, 15);
-                signal_from_b = 0;
+                sig->signal_from_b = 0;
             }
         }
     }
