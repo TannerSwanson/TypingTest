@@ -12,17 +12,17 @@ typedef struct {
 } signals;
 
 int newLine(dynamic_array* arr, signals* sig) {
-    // This works, however we have an FD problem. 
     // Child a (reads from wordlist2.txt, sets aside 300ish chars, prints out)
     // Child b validates user input against the array from child a. (in from terminal, out to terminal, maybe to a third results thread)
 
-    int fd[2]; // need to actually map the FD's. 
+
+    FILE* inputFD = fopen("wordlist2.txt", "r");
     int bufSize = 300; // bufferSize
     char* wordBuffer[15] = {0};
     int returnedByteCount;
     int index;
     while (bufSize > 0) { // we will use this to fill our arr until it is max capacity.
-        returnedByteCount = read(fd[0], &wordBuffer, 15); // read data from wordlist2.txt
+        returnedByteCount = read(inputFD, &wordBuffer, 15); // read data from wordlist2.txt
         if (returnedByteCount <= 0) { // > 0 response is successful operation.
             printf("Read Failure.");
             return -1;
@@ -40,13 +40,14 @@ int newLine(dynamic_array* arr, signals* sig) {
         }
         memset(wordBuffer, 0, 15); // resets wordBuffer values to all 0
     }
-    arrayTerminator(&arr);
+    fclose(inputFD); 
+    arrayCompletion(&arr);
     // now we can start to display all of the information.
     for (int i = 0; i < arr->size; i++) {
         printf("%c", arr->array[i]);
         printf("\n");
     }
-    sig->ready_signal = 1; // indicate to other process that we are good to go. might be useless?
+    sig->ready_signal = 1; // indicates this process has completed its job.
 }
 
 int findTermination(char* wordBuffer) { // Can't see why this would fail.
@@ -74,7 +75,7 @@ void arrayRebuild(dynamic_array* arr_pointer, char* arr2) { // I think this shou
     arr_pointer->size = newSize + 1; // size + 1 to handle the space we added.
 }
 
-void arrayTerminator(dynamic_array* arr) { // Should work.
+void arrayCompletion(dynamic_array* arr) { // Should work.
     dynamic_array* newArray = arr;
     arr->array = (dynamic_array*) malloc(newArray->size + 1); // increment by one to handle the null terminator
 
