@@ -14,7 +14,9 @@ typedef struct {
 } signals;
 
 int newLine(dynamic_array*, signals*);
-int findTermination(char*);
+int readChars(dynamic_array*);
+void shortenArray(dynamic_array*, int, char*);
+//int findTermination(char*);
 void arrayRebuild(dynamic_array*, char*, int);
 void arrayCompletion(dynamic_array*);
 
@@ -40,28 +42,32 @@ int newLine(dynamic_array* arr, signals* sig) {
     int returnedByteCount;
     int index;
     while (bufSize > 0) { // we will use this to fill our arr until it is max capacity.
-        printf("%d \n", bufSize);
-        returnedByteCount = fread(&wordBuffer, 15, 1, inputFD); 
-        // ^^ We need to remove findTermination and make this a do while loop with getchar()
-        if (returnedByteCount <= 0) { // > 0 response is successful operation.
-            printf("%d", returnedByteCount);
-            printf("Read Failure.");
-            return -1;
-        }
-        else if (bufSize - returnedByteCount >= 0) {
-            index = findTermination(wordBuffer);
-            char* wordBufferReduced = (char*) malloc (index);
-            for (int i = 0; i < index; i++) { // creates a stripped (removes any extra spaces, \n, and null terminator) array 
-                wordBufferReduced[i] = wordBuffer[i];
-            }
-            arrayRebuild(arr, wordBufferReduced, index); // appends this new word to the array rebuild.
-            bufSize -= index;
-        }
-        else {
-            bufSize = 0;
-            break;
-        }
-        memset(wordBuffer, 0, 15); // resets wordBuffer values to all 0
+    // OLD IMPLEMENTATION:
+    //     printf("%d \n", bufSize);
+    //     returnedByteCount = fread(&wordBuffer, 15, 1, inputFD); 
+    //     // ^^ We need to remove findTermination and make this a do while loop with getchar()
+    //     if (returnedByteCount <= 0) { // > 0 response is successful operation.
+    //         printf("%d", returnedByteCount);
+    //         printf("Read Failure.");
+    //         return -1;
+    //     }
+    //     else if (bufSize - returnedByteCount >= 0) {
+    //         index = findTermination(wordBuffer);
+    //         char* wordBufferReduced = (char*) malloc (index);
+    //         for (int i = 0; i < index; i++) { // creates a stripped (removes any extra spaces, \n, and null terminator) array 
+    //             wordBufferReduced[i] = wordBuffer[i];
+    //         }
+    //         arrayRebuild(arr, wordBufferReduced, index); // appends this new word to the array rebuild.
+    //         bufSize -= index;
+    //     }
+    //     else {
+    //         bufSize = 0;
+    //         break;
+    //     }
+    //     memset(wordBuffer, 0, 15); // resets wordBuffer values to all 0
+    // }
+        returnedByteCount = readChars(arr);
+        // handle the reduction in bufSize and also write error handling / error codes. 
     }
     fclose(inputFD); 
     arrayCompletion(arr);
@@ -75,21 +81,51 @@ int newLine(dynamic_array* arr, signals* sig) {
     return 1;
 }
 
-int findTermination(char* wordBuffer) { // Can't see why this would fail.
-    for (int i = 0; i < 15; i++) {
-        if (wordBuffer[i] == '\0' || wordBuffer[i] == '\n' || wordBuffer[i] == '\t') { // only terminator cases I can think of 
-            printf("Found problem: %c \n", wordBuffer[i]);
-            return i; // end 1 before the terminator char if we find them.
+int readChars(dynamic_array* arr) { // will return the number of bytes read.
+    dynamic_array* newArr;
+    int index = 0;
+    int currentChar;
+    char* tempBuffer[15];
+    while (index < 15) { // words have hard limit of 15 chars
+        currentChar = getchar();
+        if (currentChar != '\n' || currentChar != '\0') { // only terminators for a line/word
+            tempBuffer[index] = currentChar;
         }
         else {
-            printf("%c", wordBuffer[i]);
+            break;
         }
-    }
-    printf("\n");
-    return 14; // otherwise it made it to the max length.
+        index++;
+    } 
+    shortenArray(newArr, index, tempBuffer); // makes new array with proper size
+    arrayRebuild(arr, newArr, index); // appends to the larger array
+
+    return index; // return number of chars (bytes) read.
 }
 
-void arrayRebuild(dynamic_array* arr_pointer, char* arr2, int index) { // I think this should work ?
+void shortenArray(dynamic_array* arr_pointer, int index, char* tempBuffer) {
+    arr_pointer->size = index;
+    arr_pointer->array = (char*) calloc(arr_pointer->size, 1);
+    for (int i = 0; i < arr_pointer->size; i++) {
+        arr_pointer->array[i] = tempBuffer[i];
+    }
+}
+// no longer used. fault in idea.
+// int findTermination(char* wordBuffer) { // Can't see why this would fail.
+//     for (int i = 0; i < 15; i++) {
+//         if (wordBuffer[i] == '\0' || wordBuffer[i] == '\n' || wordBuffer[i] == '\t') { // only terminator cases I can think of 
+//             printf("Found problem: %c \n", wordBuffer[i]);
+//             return i; // end 1 before the terminator char if we find them.
+//         }
+//         else {
+//             printf("%c", wordBuffer[i]);
+//         }
+//     }
+//     printf("\n");
+//     return 14; // otherwise it made it to the max length.
+// }
+
+void arrayRebuild(dynamic_array* arr_pointer, char* arr2, int index) {
+    // arg1 is existing array, arg2 is new array, arg3 is length of new array.
     dynamic_array *newArray = arr_pointer;
     int oldSize = arr_pointer->size;
     int newSize = oldSize + index;
