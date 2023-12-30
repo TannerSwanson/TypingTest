@@ -14,7 +14,7 @@ typedef struct {
 } signals;
 
 int newLine(dynamic_array*, signals*);
-int readChars(dynamic_array*);
+int readChars(char*);
 void shortenArray(dynamic_array*, int, char*);
 //int findTermination(char*);
 void arrayRebuild(dynamic_array*, char*, int);
@@ -66,7 +66,19 @@ int newLine(dynamic_array* arr, signals* sig) {
     //     }
     //     memset(wordBuffer, 0, 15); // resets wordBuffer values to all 0
     // }
-        returnedByteCount = readChars(arr);
+        printf("buffer size: %d \n", bufSize);
+        dynamic_array* tempArr; // repeatedly redefine in order to reset back to empty.
+        char tempBuffer[15];
+        returnedByteCount = readChars(tempBuffer);
+        printf("Returned byte count: %d \n", returnedByteCount);
+        if (bufSize - returnedByteCount > 0) {
+            bufSize -= returnedByteCount;
+            shortenArray(tempArr, returnedByteCount, tempBuffer);
+            arrayRebuild(arr, tempArr->array, returnedByteCount);
+        }
+        else {
+            printf("Filled the buffer.");
+        }
         // handle the reduction in bufSize and also write error handling / error codes. 
     }
     fclose(inputFD); 
@@ -81,28 +93,25 @@ int newLine(dynamic_array* arr, signals* sig) {
     return 1;
 }
 
-int readChars(dynamic_array* arr) { // will return the number of bytes read.
-    dynamic_array* newArr;
+int readChars(char* tempBuffer) { // will return the number of bytes read.
     int index = 0;
     int currentChar;
-    char* tempBuffer[15];
     while (index < 15) { // words have hard limit of 15 chars
+        printf("Current Index: %d \n", index);
         currentChar = getchar();
         if (currentChar != '\n' || currentChar != '\0') { // only terminators for a line/word
             tempBuffer[index] = currentChar;
+            index++;
         }
         else {
             break;
         }
-        index++;
-    } 
-    shortenArray(newArr, index, tempBuffer); // makes new array with proper size
-    arrayRebuild(arr, newArr, index); // appends to the larger array
-
+    }
     return index; // return number of chars (bytes) read.
 }
 
 void shortenArray(dynamic_array* arr_pointer, int index, char* tempBuffer) {
+    // allocates memory for appropriate length array instead of 15 byte long one.
     arr_pointer->size = index;
     arr_pointer->array = (char*) calloc(arr_pointer->size, 1);
     for (int i = 0; i < arr_pointer->size; i++) {
@@ -126,6 +135,7 @@ void shortenArray(dynamic_array* arr_pointer, int index, char* tempBuffer) {
 
 void arrayRebuild(dynamic_array* arr_pointer, char* arr2, int index) {
     // arg1 is existing array, arg2 is new array, arg3 is length of new array.
+    // appends arg1 and arg2 and replaces dynamic_array struct with new one.
     dynamic_array *newArray = arr_pointer;
     int oldSize = arr_pointer->size;
     int newSize = oldSize + index;
