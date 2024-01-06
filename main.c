@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
+#include <conio.h>
 
 typedef struct {
     // Utilized by newLine and validate functions.
@@ -40,14 +41,15 @@ void arrayRebuild(dynamic_array* arr_og, dynamic_array* arr_new) {
     arr_og->size = newSize;
 }
 
-int newLine(dynamic_array* arr) {
-
+void * newLine(void * arr_input) {
+    dynamic_array *arr = arr_input;
     FILE* inputFD = fopen("wordlist2.txt", "r");
     int bufSize = 50;
     int* wordBuffer[15] = {0};
 
     while (bufSize > 0) { // we will use this to fill our arr until it is max capacity.
-        dynamic_array tempArr;
+        printf("Buffersize: %d\n", bufSize);
+        dynamic_array tempArr = {.size = 0, .array = calloc(1, sizeof(int))};
         readChars(&tempArr, inputFD);
         if (bufSize - tempArr.size > 0) {
             bufSize -= tempArr.size;
@@ -59,28 +61,35 @@ int newLine(dynamic_array* arr) {
     }
 
     fclose(inputFD); 
-    printf("Exited loop!\n");
-    printf("Char count: %d \n", arr->size);
-    printf("Size of array: %d\n", sizeof(arr->array));
 
     for (int i = 0; i < arr->size; i++) {
         printf("%c", arr->array[i]);
     }
 
-    pthread_exit(1);
+    pthread_exit(0);
+}
+
+void* validateResults(void* arr_input) {
+    dynamic_array* arr = (dynamic_array*) arr_input;
+    // need conic.h, or can just read at the end when the user hits enter. Whichever feels better
+    pthread_exit(0);
 }
 
 int main() {
-
     // Child a (reads from wordlist2.txt, sets aside 300ish chars, prints out)
     // Child b validates user input against the array from child a. (in from terminal, out to terminal, maybe to a third results thread)
-    dynamic_array arr = { .size = 0, .array = {' '}};
+    dynamic_array arr = { .size = 0, .array = calloc(1, sizeof(int))};
 
     pthread_t childA;
-    pthread_create(&childA, NULL, newLine, &arr);
-    if (pthread_join(childA, NULL)) { 
+    pthread_t childB;
+    pthread_create(&childA, NULL, newLine, &arr); // the code worked prior to threads implementation. now only works in gdb.
+    if (!pthread_join(childA, NULL)) { 
         // success - now send out child b.
-        printf("yooo");
+        printf("yooo\n");
+        pthread_create(&childB, NULL, validateResults, &arr);
+    }
+    else {
+        printf("nooooo\n");
     }
     return 0;
 }
