@@ -3,24 +3,51 @@
 #include <string.h>
 #include <conio.h>
 #include <time.h>
+#include <inttypes.h>
 
 #define ANSI_COLOR_RED     "\x1b[31m"
 #define ANSI_COLOR_GREEN   "\x1b[32m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
+
 #define BUF_SIZE            100
+#define MAX_LINE_SIZE       35
+
 typedef struct {
     int size;
     int* array;
     int wordCount;
 } dynamic_array;
 
+int shift2NewLine(FILE* fdin, int byteLimit) {
+    char currentChar;
+    uint64_t lowerBound = 0;
+    uint64_t upperBound = (uint64_t) byteLimit;
+
+    uint64_t randomOffetRaw = rand();
+    randomOffetRaw = (randomOffetRaw << 32) | rand();
+    uint64_t randomOffset = lowerBound + (randomOffetRaw % (upperBound-lowerBound)); // rand offset now within lower-upper bounds
+
+    fseek(fdin, randomOffset, SEEK_CUR);
+    for (int i = 0; i < MAX_LINE_SIZE; i++) { // each word is max of MAX_LINE_SIZE chars, so will always find a new line, terminator, or will be EOF
+        currentChar = getc(fdin);
+        if (currentChar == '\n' || currentChar == '\0') { // only terminators for a line/word
+            return 1;
+        }
+        else if (currentChar == EOF) {
+            return -1;
+        }
+    }
+    return -1; // if we somehow reached the end of that line without a terminator or new line, we have a problem.
+}
+
+
 void readChars(dynamic_array* arr_pointer, FILE* fdin) {
     // will return the number of actual useful bytes read.
     int index = 0;
     int currentChar;
-    while (index < 15) { // words have hard limit of 15 chars
+    while (index < MAX_LINE_SIZE) { // words have hard limit of 15 chars
         currentChar = getc(fdin);
-        if (currentChar == '\n' || currentChar == '\0') { // only terminators for a line/word
+        if (currentChar == '\n' || currentChar == '\0' || currentChar == EOF) { // only terminators for a line/word/EOF
             break;
         }
         else {
@@ -56,16 +83,29 @@ int printLine(dynamic_array* arr) {
     return 0;
 }
 
+int fileSize(FILE* fileObject) {
+    fseek(fileObject, 0L, SEEK_END);
+    int size = ftell(fileObject);
+    return size;
+}
+
 int addNewLine(dynamic_array* arr) {
     FILE* inputFD = fopen("wordlist2.txt", "r");
     if (inputFD == NULL) {
         printf("fopen() failed.\n");
         return -1;
     }
+    int fileLimit = fileSize(inputFD); // finds EOF so we have bounds to pick random words.
+    printf("FileSize: %d\n", fileLimit);
+    srand((unsigned) time(NULL));
     int bufSize = BUF_SIZE;
     while (bufSize > 0) { // we will use this to fill our arr until it is max capacity.
         printf("Bufsize: %d\n", bufSize);
+        fseek(inputFD, 0L, SEEK_SET); // move file pointer back to start of file
         dynamic_array tempArr = {.size = 0, .array = calloc(1, sizeof(int))};
+        if (shift2NewLine(inputFD, fileLimit) == -1) { // will move the pointer in file to start of new word, otherwise 
+            continue;
+        }
         readChars(&tempArr, inputFD);
         if (bufSize - tempArr.size > 0) {
             bufSize -= tempArr.size;
@@ -77,7 +117,7 @@ int addNewLine(dynamic_array* arr) {
         }
     }
     fclose(inputFD);
-    arr->size--; // this will account for the final character being a space due to readChars always appending.
+    arr->size--; // this will account for the final character being a space due to readChars always appending one.
     printLine(arr); //print to terminal for user.
     return 0;
 }
@@ -102,10 +142,6 @@ int validateRespones(dynamic_array* arr) {
 
     while (currentIndex < arr->size) {
         int character = getch();
-        if (!hasTimerStarted) {
-            hasTimerStarted = 1;
-            start = clock();
-        }
         if (character == 64) { // exit (@)
             return -1;
         }
@@ -118,11 +154,21 @@ int validateRespones(dynamic_array* arr) {
             }
         }
         else { // do 
+            if (!hasTimerStarted) { // checks if timer is active or not.
+                hasTimerStarted = 1;
+                start = clock();
+            }   
             resultArray[currentIndex] = checkChar(arr, currentIndex, character);
             currentIndex++;
         }
     }
-    total = clock() - start;
+    if (hasTimerStarted) {
+        hasTimerStarted = 2;
+        total = clock() - start;
+    }
+    else {
+        total = 0; // if timer never began (somehow)
+    }
 
     int sum = 0;
      for (int i = 0; i < arr->size; i++) { 
@@ -141,7 +187,6 @@ int validateRespones(dynamic_array* arr) {
 int main() {
     //  now we need to do:
     //          More error checking / handling
-    //          More results (total words correct / total)
     //          Get normal compilation working again :(
     dynamic_array arr = { .size = 0, .array = calloc(1, sizeof(int))};
     addNewLine(&arr);
